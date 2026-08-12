@@ -6,21 +6,8 @@ const Prescription = require('../models/Prescription');
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 const Appointment = require('../models/Appointment');
+const notificationService = require('./notification.service');
 const aiService = require('./aiClinicalDecisionSupport.service');
-const { sharePrescriptionNotifications } = require('./notification.service');
-
-
-/**
- * SRS Module 5: full lifecycle enforcement.
- * Status machine: draft_created -> under_review -> doctor_approved
- *                 -> prescription_generated -> shared_with_patient
- *
- * Hard rules enforced here (not just in the schema):
- * Rule 2: getForPatient() only ever returns toPatientView(), which strips aiRecommendation.
- * Rule 3: generatePrescriptionPdf-eligible only after status === doctor_approved.
- * Rule 5: every mutation pushes an auditTrail entry.
- * Rule 6: approvePrescription() requires actor.role === 'doctor' and a matching Doctor record.
- */
 
 function appendAudit(prescription, eventType, actor, details, ipAddress) {
   prescription.auditTrail.push({
@@ -33,10 +20,6 @@ function appendAudit(prescription, eventType, actor, details, ipAddress) {
   });
 }
 
-/**
- * Patients are handed a human-friendly prescriptionNumber (e.g. "RX-...-BE25E9"),
- * never the raw Mongo _id. This resolves either form to a Prescription document.
- */
 async function findByIdOrPrescriptionNumber(identifier) {
   if (!identifier) return null;
 
@@ -49,17 +32,27 @@ async function findByIdOrPrescriptionNumber(identifier) {
 }
 
 async function createDraftWithAiSuggestion({ appointmentId, patientId, doctorId, symptoms, labReports }, actor, ipAddress) {
-  // Guard against frontend/body mapping issues causing Mongoose cast errors
-  if (patientId === undefined || patientId === null || patientId === '' ) {
-    throw new Error('patientId is required (createDraftWithAiSuggestion).');
-  }
-  if (appointmentId === undefined || appointmentId === null || appointmentId === '' ) {
-    throw new Error('appointmentId is required (createDraftWithAiSuggestion).');
+  if (!patientId || !mongoose.Types.ObjectId.isValid(patientId)) {
+    throw new Error('Invalid patientId');
   }
 
   const patient = await Patient.findById(patientId);
   if (!patient) throw new Error('Patient not found');
-const doctor = await Doctor.findById(doctorId);
+  const doctor = await Doctor.findById(doctorId);
+
+  // Calculate patient age (in years) from date of birth, so the AI
+  // service can filter/flag medicines that aren't appropriate for this age.
+  let patientAgeYears;
+  if (patient.dob) {
+    const dob = new Date(patient.dob);
+    const now = new Date();
+    let years = now.getFullYear() - dob.getFullYear();
+    const monthDiff = now.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+      years -= 1;
+    }
+    patientAgeYears = years;
+  }
 
   const aiRecommendation = await aiService.generateClinicalRecommendation({
     symptoms,
@@ -68,6 +61,8 @@ const doctor = await Doctor.findById(doctorId);
     existingDiseases: patient.existingDiseases,
     currentMedications: patient.chronicMedications,
     labReports,
+    medicineSystem: doctor?.specialization,
+    patientAgeYears,
   });
 
   const prescription = new Prescription({
@@ -94,14 +89,7 @@ async function reviewAndStageFinal(prescriptionId, { finalMedicines, finalAdvice
   prescription.finalMedicines = finalMedicines;
   prescription.finalAdvice = finalAdvice;
   prescription.diagnosis = diagnosis;
-
-  const followUpDateChanged = String(prescription.followUpDate || '') !== String(followUpDate || '');
   prescription.followUpDate = followUpDate;
-  if (followUpDateChanged) {
-    prescription.followUpStatus = followUpDate ? 'pending' : undefined;
-    prescription.followUpReminderSentAt = undefined;
-  }
-
   prescription.status = 'under_review';
 
   appendAudit(prescription, 'doctor_modified', actor, { changesSummary }, ipAddress);
@@ -180,32 +168,31 @@ async function shareWithPatient(prescriptionId, channels, actor, ipAddress) {
     throw new Error('Prescription must be generated before it can be shared.');
   }
 
-  // channels can be an array (enum values) or an object (email/sms payload).
-  // Keep DB enum field safe by allowing only enum strings in an array.
-  const safeSharedVia = Array.isArray(channels) ? channels : (channels?.sharedVia || []);
-  prescription.sharedVia = safeSharedVia;
+  prescription.sharedVia = channels;
   prescription.sharedAt = new Date();
   prescription.status = 'shared_with_patient';
 
   appendAudit(prescription, 'prescription_shared', actor, { channels }, ipAddress);
   await prescription.save();
 
-  // Best-effort notifications (NO crash allowed)
-  // This can fail (missing API keys/quota/network/invalid payload),
-  // but it must never break the share flow.
-  try {
-    await sharePrescriptionNotifications({ prescription, channels });
-  } catch (e) {
-    // Intentionally no-op: error-free requirement.
-  }
-
   if (prescription.appointment) {
     await Appointment.findByIdAndUpdate(prescription.appointment, { status: 'completed' });
   }
 
+  const patient = await Patient.findById(prescription.patient);
+  if (patient?.user) {
+    const sharedMessage = `Your prescription ${prescription.prescriptionNumber || ''} has been shared and is available in the patient portal.`;
+    notificationService.createNotification({
+      userId: patient.user,
+      type: 'prescription',
+      title: 'Prescription shared',
+      message: sharedMessage,
+      data: { prescriptionId: prescription._id, prescriptionNumber: prescription.prescriptionNumber },
+    }).catch(() => null);
+  }
+
   return prescription;
 }
-
 
 async function getForPatient(identifier) {
   const prescription = await findByIdOrPrescriptionNumber(identifier);
@@ -222,14 +209,6 @@ async function getForClinicalStaff(identifier) {
     .populate('appointment');
 }
 
-/**
- * SRS Module 2.3 — Doctor permission: View Previous Prescriptions.
- * Returns every prescription on file for a patient (by Patient _id, as
- * used elsewhere in the clinical/EMR flows), most recent first. Unlike
- * getMyPrescriptions(), this is the full clinical record (not the
- * patient-sanitized view) since the caller here is a doctor reviewing
- * history during a consultation, not the patient themself.
- */
 async function getPreviousPrescriptionsForPatient(patientId) {
   return Prescription.find({
     patient: patientId,
@@ -254,57 +233,67 @@ async function getMyPrescriptions(patientUserId) {
   return prescriptions.map((p) => p.toPatientView()).filter(Boolean);
 }
 
-/**
- * SRS Module 2.1 - Patient permission: Download Reports.
- * Renders the doctor-approved prescription as a PDF buffer. Only ever
- * built from toPatientView() data, so the AI block / consultation notes /
- * audit trail can never leak into a downloadable file.
- */
-async function suggestPharmacistAlternatives(prescriptionId, pharmacistActor, { items }, ipAddress) {
-  if (!pharmacistActor || pharmacistActor.role !== 'pharmacist') {
-    throw new Error('Forbidden: only pharmacists may suggest alternatives.');
+async function getFollowUpWorklist(filters = {}) {
+  const query = {
+    followUpDate: { $exists: true, $ne: null },
+  };
+
+  if (filters.status) {
+    query.followUpStatus = filters.status;
   }
+
+  if (filters.doctorId) {
+    query.doctor = filters.doctorId;
+  }
+
+  return Prescription.find(query)
+    .populate('patient')
+    .populate('doctor')
+    .sort({ followUpDate: 1 });
+}
+
+async function updateFollowUpStatus(
+  prescriptionId,
+  { followUpStatus, followUpAppointmentId },
+  actor,
+  ipAddress
+) {
 
   const prescription = await Prescription.findById(prescriptionId);
-  if (!prescription) throw new Error('Prescription not found');
 
-  // Do not allow pharmacist to override doctor-approved finalMedicines.
-  // Allow suggestions after at least doctor approval (under_review/approved).
-  if (!['doctor_approved', 'prescription_generated', 'shared_with_patient'].includes(prescription.status)) {
-    throw new Error('Alternatives can only be suggested for doctor-approved prescriptions.');
+  if (!prescription) {
+    throw new Error('Prescription not found');
   }
 
-  // Basic normalization/validation
-  const safeItems = (items || []).map((it) => ({
-    originalMedicine: it.originalMedicine,
-    alternativeBrandName: it.alternativeBrandName,
-    alternativeComposition: it.alternativeComposition,
-    notes: it.notes || '',
-  }));
-
-  prescription.pharmacistAlternativeSuggestions = [
-    {
-      suggestedBy: pharmacistActor._id,
-      suggestedByName: pharmacistActor.fullName,
-      suggestedAt: new Date(),
-      items: safeItems,
-    },
+  const allowedStatus = [
+  'pending',
+  'scheduled',
+  'completed',
+  'missed'
   ];
+
+  if (!allowedStatus.includes(followUpStatus)) {
+    throw new Error('Invalid follow-up status');
+  }
+
+  prescription.followUpStatus = followUpStatus;
+  if (followUpAppointmentId) {
+    prescription.followUpAppointmentId = followUpAppointmentId;
+  }
 
   appendAudit(
     prescription,
-    'pharmacist_alternative_suggestions',
-    pharmacistActor,
-    { items: safeItems.map((x) => ({
-      originalMedicine: x.originalMedicine,
-      alternativeBrandName: x.alternativeBrandName,
-      alternativeComposition: x.alternativeComposition,
-      notes: x.notes,
-    })) },
+    'followup_status_updated',
+    actor,
+    {
+      newStatus: followUpStatus,
+      followUpAppointmentId,
+    },
     ipAddress
   );
 
   await prescription.save();
+
   return prescription;
 }
 
@@ -380,69 +369,6 @@ async function generatePrescriptionPdf(identifier) {
   });
 }
 
-/**
- * SRS Module 9 — Follow-up Management (staff worklist).
- */
-async function getFollowUpWorklist({ doctorId, status, from, to } = {}) {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  await Prescription.updateMany(
-    { followUpDate: { $lt: todayStart }, followUpStatus: 'pending' },
-    { $set: { followUpStatus: 'missed' } }
-  );
-
-  const match = { followUpDate: { $ne: null, $exists: true } };
-  if (doctorId) match.doctor = doctorId;
-
-  if (status && status !== 'all') {
-    match.followUpStatus = status;
-  } else if (!status) {
-    match.followUpStatus = { $ne: 'completed' };
-  }
-
-  if (from || to) {
-    match.followUpDate = { ...match.followUpDate };
-    if (from) match.followUpDate.$gte = new Date(from);
-    if (to) match.followUpDate.$lte = new Date(to);
-  }
-
-  return Prescription.find(match)
-    .populate({ path: 'patient', populate: { path: 'user', select: 'fullName mobileNumber email' } })
-    .populate({ path: 'doctor', populate: { path: 'user', select: 'fullName' } })
-    .select('patient doctor followUpDate followUpStatus followUpAppointment diagnosis finalAdvice.followUpInstructions prescriptionNumber createdAt')
-    .sort({ followUpDate: 1 });
-}
-
-/**
- * SRS Module 9 — mark a follow-up as scheduled/completed/missed.
- */
-async function updateFollowUpStatus(prescriptionId, { followUpStatus, followUpAppointmentId }, actor, ipAddress) {
-  const prescription = await Prescription.findById(prescriptionId);
-  if (!prescription) throw new Error('Prescription not found');
-  if (!prescription.followUpDate) throw new Error('This prescription has no follow-up date set.');
-
-  const allowed = ['pending', 'scheduled', 'completed', 'missed'];
-  if (!allowed.includes(followUpStatus)) {
-    throw new Error(`Invalid followUpStatus. Must be one of: ${allowed.join(', ')}`);
-  }
-
-  prescription.followUpStatus = followUpStatus;
-  if (followUpAppointmentId) {
-    prescription.followUpAppointment = followUpAppointmentId;
-  }
-
-  appendAudit(
-    prescription,
-    'followup_status_changed',
-    actor,
-    { followUpStatusChangedTo: followUpStatus, followUpAppointmentId: followUpAppointmentId || undefined },
-    ipAddress
-  );
-  await prescription.save();
-  return prescription;
-}
-
 module.exports = {
   createDraftWithAiSuggestion,
   reviewAndStageFinal,
@@ -454,7 +380,6 @@ module.exports = {
   getMyPrescriptions,
   generatePrescriptionPdf,
   getPreviousPrescriptionsForPatient,
-  suggestPharmacistAlternatives,
   getFollowUpWorklist,
   updateFollowUpStatus,
 };

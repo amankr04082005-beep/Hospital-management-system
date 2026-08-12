@@ -19,6 +19,28 @@ const medicineSchema = new mongoose.Schema(
       },
     ],
 
+    // Age-based prescribing rules — used by aiClinicalDecisionSupport.service.js
+    // to filter/flag AI-suggested medicines that aren't appropriate for the
+    // patient's age, and to attach the correct dosage for that age band.
+    ageRestriction: {
+      minAgeMonths: { type: Number, default: 0 },   // 0 = no lower limit
+      maxAgeMonths: { type: Number, default: null }, // null = no upper limit
+      category: {
+        type: String,
+        enum: ['infant', 'child', 'adult', 'elderly', 'all'],
+        default: 'all',
+      },
+    },
+    dosageByAge: [
+      {
+        label: { type: String, required: true }, // "1-5 years"
+        minAgeMonths: { type: Number, required: true },
+        maxAgeMonths: { type: Number, default: null },
+        dosage: { type: String, required: true }, // "5ml twice daily"
+        notes: { type: String, default: '' },
+      },
+    ],
+
     // SRS Module 2.4 — Pharmacist permission: Manage Inventory.
     // A simple single-location stock count. lowStockThreshold drives the
     // "low stock" flag the pharmacist sees so they know to reorder before
@@ -38,6 +60,26 @@ medicineSchema.index({ composition: 'text', brandName: 'text', genericName: 'tex
 medicineSchema.virtual('isLowStock').get(function isLowStock() {
   return this.stockQuantity <= this.lowStockThreshold;
 });
+
+// Is this medicine appropriate for a patient of a given age (in months)?
+medicineSchema.methods.isAppropriateForAge = function isAppropriateForAge(ageInMonths) {
+  const { minAgeMonths = 0, maxAgeMonths } = this.ageRestriction || {};
+  if (ageInMonths < minAgeMonths) return false;
+  if (maxAgeMonths !== null && maxAgeMonths !== undefined && ageInMonths > maxAgeMonths) return false;
+  return true;
+};
+
+// Returns the matching dosage block for a given age (in months), or null.
+medicineSchema.methods.getDosageForAge = function getDosageForAge(ageInMonths) {
+  return (
+    (this.dosageByAge || []).find(
+      (d) =>
+        ageInMonths >= d.minAgeMonths &&
+        (d.maxAgeMonths === null || d.maxAgeMonths === undefined || ageInMonths <= d.maxAgeMonths)
+    ) || null
+  );
+};
+
 medicineSchema.set('toJSON', { virtuals: true });
 medicineSchema.set('toObject', { virtuals: true });
 
