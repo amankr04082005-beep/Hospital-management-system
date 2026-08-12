@@ -306,6 +306,48 @@ async function checkDrugInteractions(currentMedications = [], suggestedMedicines
   return warnings;
 }
 
+/**
+ * NEW — Age-based check.
+ * For each AI-suggested medicine, looks up the catalog entry and:
+ *  - flags it if it's outside the medicine's ageRestriction range
+ *  - attaches the age-appropriate dosage (recommendedDosage) when available
+ * Returns { ageWarnings, annotatedMedicines } for UI display and safe prescribing.
+ */
+async function checkAgeAppropriateness(patientAgeYears, suggestedMedicines = []) {
+  const ageWarnings = [];
+  if (patientAgeYears === undefined || patientAgeYears === null) {
+    return { ageWarnings, annotatedMedicines: suggestedMedicines };
+  }
+
+  const ageInMonths = Math.round(Number(patientAgeYears) * 12);
+  const annotatedMedicines = [];
+
+  for (const med of suggestedMedicines) {
+    const catalogMatch = await Medicine.findOne({ composition: new RegExp(med.composition || '', 'i') });
+    if (!catalogMatch) {
+      annotatedMedicines.push(med);
+      continue;
+    }
+
+    const isAppropriate = catalogMatch.isAppropriateForAge(ageInMonths);
+    const dosageForAge = catalogMatch.getDosageForAge(ageInMonths);
+    if (!isAppropriate) {
+      ageWarnings.push(
+        `${med.brandName || med.genericName} is not recommended for this patient's age (${patientAgeYears} yrs).`
+      );
+    }
+
+    annotatedMedicines.push({
+      ...med,
+      ageAppropriate: isAppropriate,
+      recommendedDosage: dosageForAge ? dosageForAge.dosage : med.dosage,
+      ageDosageNote: dosageForAge ? dosageForAge.notes : undefined,
+    });
+  }
+
+  return { ageWarnings, annotatedMedicines };
+}
+
 async function generateClinicalRecommendation({
   symptoms,
   medicalHistory,
@@ -313,6 +355,7 @@ async function generateClinicalRecommendation({
   existingDiseases = [],
   currentMedications = [],
   labReports = [],
+  patientAgeYears,
 }) {
   const aiOutput = await callLanguageModel({ symptoms });
 
@@ -321,16 +364,19 @@ async function generateClinicalRecommendation({
     source: 'ai_suggested',
   }));
 
-  const [allergyAlerts, contraindicationAlerts, interactionWarnings] = await Promise.all([
+  const [allergyAlerts, contraindicationAlerts, interactionWarnings, ageCheck] = await Promise.all([
     checkAllergyAlerts(allergies, medicineSuggestions),
     checkContraindications(existingDiseases, medicineSuggestions),
     checkDrugInteractions(currentMedications, medicineSuggestions),
+    checkAgeAppropriateness(patientAgeYears, medicineSuggestions),
   ]);
+
+  const annotatedMedicineSuggestions = ageCheck.annotatedMedicines || medicineSuggestions;
 
   return {
     label: AI_LABEL,
     probableDiagnoses: aiOutput.probableDiagnoses || [],
-    medicineSuggestions,
+    medicineSuggestions: annotatedMedicineSuggestions,
     clinicalAdvice: aiOutput.clinicalAdvice || {
       dietRecommendations: [],
       lifestyleRecommendations: [],
@@ -340,6 +386,7 @@ async function generateClinicalRecommendation({
     interactionWarnings,
     allergyAlerts,
     contraindicationAlerts,
+    ageWarnings: ageCheck.ageWarnings,
     generatedAt: new Date(),
     aiModelVersion: 'python-ml-clinical-engine-v1',
   };
@@ -351,4 +398,5 @@ module.exports = {
   checkAllergyAlerts,
   checkContraindications,
   checkDrugInteractions,
+  checkAgeAppropriateness,
 };

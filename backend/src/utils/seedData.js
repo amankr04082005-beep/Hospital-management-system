@@ -136,6 +136,10 @@ async function seed() {
       category: 'Analgesic/Antipyretic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet, up to 3x/day', notes: 'After food' },
+      ],
     },
     {
       brandName: 'Crocin 650',
@@ -146,6 +150,10 @@ async function seed() {
       category: 'Analgesic/Antipyretic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet, up to 3x/day', notes: 'After food' },
+      ],
     },
     {
       brandName: 'Calpol 650',
@@ -156,6 +164,10 @@ async function seed() {
       category: 'Analgesic/Antipyretic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet, up to 3x/day', notes: 'After food' },
+      ],
     },
     {
       brandName: 'Augmentin 625',
@@ -167,6 +179,10 @@ async function seed() {
       isPenicillinBased: true,
       contraindications: ['kidney_disease'],
       interactsWith: [{ composition: 'Warfarin', severity: 'moderate', note: 'May increase bleeding risk' }],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet twice daily', notes: 'Complete full course as prescribed' },
+      ],
     },
     {
       brandName: 'Dolo 500',
@@ -177,6 +193,10 @@ async function seed() {
       category: 'Analgesic/Antipyretic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet every 6-8 hours as needed', notes: 'Do not exceed 4 tablets in 24 hours' },
+      ],
     },
     {
       brandName: 'Crocin Advance',
@@ -187,6 +207,10 @@ async function seed() {
       category: 'Analgesic/Antipyretic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet every 6-8 hours as needed', notes: 'Do not exceed 4 tablets in 24 hours' },
+      ],
     },
     {
       brandName: 'Benadryl',
@@ -197,6 +221,11 @@ async function seed() {
       category: 'Antihistamine',
       isPenicillinBased: false,
       contraindications: ['glaucoma'],
+      ageRestriction: { minAgeMonths: 24, maxAgeMonths: null, category: 'child' },
+      dosageByAge: [
+        { label: '2-5 years', minAgeMonths: 24, maxAgeMonths: 59, dosage: '5ml twice daily', notes: 'Take with food if stomach upset occurs' },
+        { label: '6+ years', minAgeMonths: 72, maxAgeMonths: null, dosage: '10ml twice daily', notes: 'Take after food' },
+      ],
     },
     {
       brandName: 'Phenadryl',
@@ -207,6 +236,11 @@ async function seed() {
       category: 'Antihistamine',
       isPenicillinBased: false,
       contraindications: ['glaucoma'],
+      ageRestriction: { minAgeMonths: 24, maxAgeMonths: null, category: 'child' },
+      dosageByAge: [
+        { label: '2-5 years', minAgeMonths: 24, maxAgeMonths: 59, dosage: '5ml twice daily', notes: 'Take with food if stomach upset occurs' },
+        { label: '6+ years', minAgeMonths: 72, maxAgeMonths: null, dosage: '10ml twice daily', notes: 'Take after food' },
+      ],
     },
     {
       brandName: 'Cetzine',
@@ -217,6 +251,10 @@ async function seed() {
       category: 'Antihistamine',
       isPenicillinBased: false,
       contraindications: [],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet once daily', notes: 'Preferably at bedtime' },
+      ],
     },
     {
       brandName: 'Alerid',
@@ -227,6 +265,10 @@ async function seed() {
       category: 'Antihistamine',
       isPenicillinBased: false,
       contraindications: [],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet once daily', notes: 'Preferably at bedtime' },
+      ],
     },
     {
       brandName: 'Okacet',
@@ -237,6 +279,10 @@ async function seed() {
       category: 'Antihistamine',
       isPenicillinBased: false,
       contraindications: [],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet once daily', notes: 'Preferably at bedtime' },
+      ],
     },
     {
       brandName: 'Amoxil',
@@ -247,6 +293,10 @@ async function seed() {
       category: 'Antibiotic',
       isPenicillinBased: true,
       contraindications: ['penicillin_allergy'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 capsule thrice daily', notes: 'Complete full course' },
+      ],
     },
     {
       brandName: 'Novamox',
@@ -257,6 +307,10 @@ async function seed() {
       category: 'Antibiotic',
       isPenicillinBased: true,
       contraindications: ['penicillin_allergy'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 capsule thrice daily', notes: 'Complete full course' },
+      ],
     },
     {
       brandName: 'Mox',
@@ -267,6 +321,10 @@ async function seed() {
       category: 'Antibiotic',
       isPenicillinBased: true,
       contraindications: ['penicillin_allergy'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 capsule thrice daily', notes: 'Complete full course' },
+      ],
     },
     {
       brandName: 'Azithral 500',
@@ -277,6 +335,10 @@ async function seed() {
       category: 'Antibiotic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet once daily', notes: 'Take with food' },
+      ],
     },
     {
       brandName: 'Zithromax',
@@ -287,6 +349,10 @@ async function seed() {
       category: 'Antibiotic',
       isPenicillinBased: false,
       contraindications: ['liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet once daily', notes: 'Take with food' },
+      ],
     },
     {
       brandName: 'Brufen 400',
@@ -297,6 +363,10 @@ async function seed() {
       category: 'NSAID',
       isPenicillinBased: false,
       contraindications: ['kidney_disease', 'peptic_ulcer'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet every 8 hours', notes: 'Take with food' },
+      ],
     },
     {
       brandName: 'Combiflam',
@@ -307,6 +377,10 @@ async function seed() {
       category: 'NSAID/Analgesic',
       isPenicillinBased: false,
       contraindications: ['kidney_disease', 'peptic_ulcer', 'liver_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet every 8 hours', notes: 'Take with food and do not exceed 4 tablets in 24 hours' },
+      ],
     },
     {
       brandName: 'Omez',
@@ -317,6 +391,10 @@ async function seed() {
       category: 'Proton Pump Inhibitor',
       isPenicillinBased: false,
       contraindications: [],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 capsule once daily before breakfast', notes: 'Take at least 30 minutes before food' },
+      ],
     },
     {
       brandName: 'Prilosec',
@@ -327,6 +405,10 @@ async function seed() {
       category: 'Proton Pump Inhibitor',
       isPenicillinBased: false,
       contraindications: [],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 capsule once daily before breakfast', notes: 'Take at least 30 minutes before food' },
+      ],
     },
     {
       brandName: 'Glycomet 500',
@@ -337,6 +419,10 @@ async function seed() {
       category: 'Antidiabetic',
       isPenicillinBased: false,
       contraindications: ['kidney_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet twice daily after food', notes: 'Take with meals to reduce gastrointestinal discomfort' },
+      ],
     },
     {
       brandName: 'Glucophage',
@@ -347,6 +433,10 @@ async function seed() {
       category: 'Antidiabetic',
       isPenicillinBased: false,
       contraindications: ['kidney_disease'],
+      ageRestriction: { minAgeMonths: 144, maxAgeMonths: null, category: 'adult' },
+      dosageByAge: [
+        { label: '12+ years', minAgeMonths: 144, maxAgeMonths: null, dosage: '1 tablet twice daily after food', notes: 'Take with meals to reduce gastrointestinal discomfort' },
+      ],
     },
   ]);
 

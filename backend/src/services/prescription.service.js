@@ -56,6 +56,18 @@ async function createDraftWithAiSuggestion({ appointmentId, patientId, doctorId,
   if (!patient) throw new Error('Patient not found');
   const doctor = await Doctor.findById(doctorId);
 
+  let patientAgeYears = null;
+  if (patient.dob) {
+    const dob = new Date(patient.dob);
+    const now = new Date();
+    let years = now.getFullYear() - dob.getFullYear();
+    const monthDiff = now.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+      years -= 1;
+    }
+    patientAgeYears = years;
+  }
+
   const aiRecommendation = await aiService.generateClinicalRecommendation({
     symptoms,
     medicalHistory: { existingDiseases: patient.existingDiseases, familyHistory: patient.familyHistory },
@@ -64,6 +76,7 @@ async function createDraftWithAiSuggestion({ appointmentId, patientId, doctorId,
     currentMedications: patient.chronicMedications,
     labReports,
     medicineSystem: doctor?.specialization,
+    patientAgeYears,
   });
 
   const prescription = new Prescription({

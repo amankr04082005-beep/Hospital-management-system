@@ -4,6 +4,7 @@ const ctrl = require('../controllers/medicine.controller');
 const router = express.Router();
 router.use(authenticate);
 router.get('/search', ctrl.search);
+router.get('/by-age', ctrl.getMedicinesByAge);
 router.get('/lookup', ctrl.lookupExternal);
 router.get('/alternatives-by-name', ctrl.getAlternativesByName);
 router.post('/lookup-batch', ctrl.lookupBatch);

@@ -1,5 +1,6 @@
 const Medicine = require('../models/Medicine');
 const { findAlternativesFromDrugDatabase, lookupDrug, lookupMultipleDrugs } = require('../services/drugDatabase.service');
+const { yearsToMonths, filterMedicinesByAge } = require('../services/medicineAgeFilter.service');
 
 
 // GET /api/medicines/search?q=Dolo  — Module 6: Search by brand/generic/composition
@@ -142,6 +143,30 @@ async function getInventory(req, res, next) {
   }
 }
 
+async function getMedicinesByAge(req, res, next) {
+  try {
+    const { ageInYears, ageInMonths } = req.query;
+    if (!ageInYears && !ageInMonths) {
+      return res.status(400).json({ success: false, message: 'ageInYears or ageInMonths query param is required.' });
+    }
+
+    const patientAgeInMonths = ageInMonths
+      ? Number(ageInMonths)
+      : yearsToMonths(ageInYears);
+
+    if (Number.isNaN(patientAgeInMonths) || patientAgeInMonths < 0) {
+      return res.status(400).json({ success: false, message: 'ageInYears or ageInMonths must be a valid non-negative number.' });
+    }
+
+    const allMedicines = await Medicine.find({});
+    const filtered = filterMedicinesByAge(allMedicines, patientAgeInMonths);
+
+    res.json({ success: true, count: filtered.length, data: filtered });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // PATCH /api/medicines/:id/stock  (Pharmacist only)
 async function updateStock(req, res, next) {
   try {
@@ -173,5 +198,6 @@ module.exports = {
   getAlternatives,
   getAlternativesByName,
   getInventory,
+  getMedicinesByAge,
   updateStock,
 };

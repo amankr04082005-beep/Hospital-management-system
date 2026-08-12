@@ -19,6 +19,25 @@ const medicineSchema = new mongoose.Schema(
       },
     ],
 
+    ageRestriction: {
+      minAgeMonths: { type: Number, default: 0 },
+      maxAgeMonths: { type: Number, default: null },
+      category: {
+        type: String,
+        enum: ['infant', 'child', 'adult', 'elderly', 'all'],
+        default: 'all',
+      },
+    },
+    dosageByAge: [
+      {
+        label: { type: String, required: true },
+        minAgeMonths: { type: Number, required: true },
+        maxAgeMonths: { type: Number, default: null },
+        dosage: { type: String, required: true },
+        notes: { type: String, default: '' },
+      },
+    ],
+
     // SRS Module 2.4 — Pharmacist permission: Manage Inventory.
     // A simple single-location stock count. lowStockThreshold drives the
     // "low stock" flag the pharmacist sees so they know to reorder before
@@ -38,6 +57,24 @@ medicineSchema.index({ composition: 'text', brandName: 'text', genericName: 'tex
 medicineSchema.virtual('isLowStock').get(function isLowStock() {
   return this.stockQuantity <= this.lowStockThreshold;
 });
+
+medicineSchema.methods.isAppropriateForAge = function isAppropriateForAge(ageInMonths) {
+  const { minAgeMonths = 0, maxAgeMonths } = this.ageRestriction || {};
+  if (ageInMonths < minAgeMonths) return false;
+  if (maxAgeMonths !== null && maxAgeMonths !== undefined && ageInMonths > maxAgeMonths) return false;
+  return true;
+};
+
+medicineSchema.methods.getDosageForAge = function getDosageForAge(ageInMonths) {
+  return (
+    (this.dosageByAge || []).find(
+      (entry) =>
+        ageInMonths >= entry.minAgeMonths &&
+        (entry.maxAgeMonths === null || entry.maxAgeMonths === undefined || ageInMonths <= entry.maxAgeMonths)
+    ) || null
+  );
+};
+
 medicineSchema.set('toJSON', { virtuals: true });
 medicineSchema.set('toObject', { virtuals: true });
 
