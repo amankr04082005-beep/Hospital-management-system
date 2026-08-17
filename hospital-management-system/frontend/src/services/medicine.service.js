@@ -24,10 +24,6 @@ export async function getAlternativesByName(name) {
   return { resolvedId: resolved._id, alternatives: alternatives.filter((a) => a._id !== resolved._id) };
 }
 
-// External drug lookups (previously powered by /api/medicines/lookup and /lookup-batch)
-// were removed to “chhod drugs db” and only local inventory/alternatives are supported.
-
-
 // SRS Module 2.4 — Pharmacist permission: Manage Inventory.
 export async function getInventory() {
   const { data } = await api.get('/medicines/inventory');
@@ -36,5 +32,11 @@ export async function getInventory() {
 
 export async function updateStock(medicineId, adjustment, expiryDate) {
   const { data } = await api.patch(`/medicines/${medicineId}/stock`, { adjustment, expiryDate });
+  return data.data;
+}
+
+// Manually add a new medicine to inventory (Pharmacist/Admin only).
+export async function addMedicine(payload) {
+  const { data } = await api.post('/medicines', payload);
   return data.data;
 }

@@ -1,32 +1,24 @@
 const axios = require('axios');
-const Medicine = require('../models/Medicine');
 
 /**
  * SRS Module 6 — Drug Database Integration.
  *
- * Strategy:
- *  1. Look up the medicine in our local `Medicine` collection first
- *     (fast, curated, used for contraindication/interaction checks).
- *  2. If not found locally, fall back to the free, public OpenFDA
- *     Drug Label API (https://open.fda.gov/apis/drug/label/) which
- *     requires NO API key and NO signup.
+ * Strategy (API-only, no local seed data):
+ *  1. Try the free, public OpenFDA Drug Label API
+ *     (https://open.fda.gov/apis/drug/label/) which requires NO API
+ *     key and NO signup.
+ *  2. If not found, fall back to RxNorm.
  *  3. For "same composition" alternatives specifically, fall back to
  *     the Drug Database API (drug-database.com) using:
  *       substance name -> xref (UNII + codes) -> ATC code -> drugs in
  *       that ATC subtree.
- *     NOTE: /v1/substances/{unii} on this provider returns 404 even
- *     for valid UNIIs (provider-side data gap), so we deliberately do
- *     NOT call it. Instead we extract the ATC code directly from the
- *     /v1/substances/xref response's `codes` array.
  *
  * OpenFDA / RxNorm / Drug Database are informational only and
  * should never be treated as a substitute for clinical judgement.
  */
 
-const OPENFDA_BASE_URL = 'https://api.fda.gov/drug/label.json';
-
-const RXNORM_BASE_URL = 'https://rxnav.nlm.nih.gov/';
-
+const OPENFDA_BASE_URL = process.env.OPENFDA_BASE_URL || 'https://api.fda.gov/drug/label.json';
+const RXNORM_BASE_URL = process.env.RXNORM_BASE_URL || 'https://rxnav.nlm.nih.gov/';
 const DRUG_DB_BASE_URL = process.env.DRUG_DATABASE_API_URL || 'https://drug-database.com';
 const DRUG_DB_API_KEY = process.env.DRUG_DATABASE_API_KEY || null;
 
@@ -115,18 +107,6 @@ async function lookupDrug(drugName) {
     return { found: false, source: null, data: null };
   }
 
-  const localMatch = await Medicine.findOne({
-    $or: [
-      { brandName: new RegExp(`^${drugName}$`, 'i') },
-      { genericName: new RegExp(`^${drugName}$`, 'i') },
-      { composition: new RegExp(drugName, 'i') },
-    ],
-  }).lean();
-
-  if (localMatch) {
-    return { found: true, source: 'local', data: localMatch };
-  }
-
   const openFDAResult = await fetchFromOpenFDA(drugName);
   if (openFDAResult) {
     return { found: true, source: 'openfda', data: openFDAResult };
@@ -198,39 +178,10 @@ async function findAlternativesFromDrugDatabase(substanceName, countryCode = 'CH
     return [];
   }
 }
-async function searchDrugDatabase(query, country = "IN", limit = 20) {
-  if (!query || !DRUG_DB_API_KEY) return [];
 
-  try {
-    const { data } = await axios.get(
-      `${DRUG_DB_BASE_URL}/v1/drugs/search`,
-      {
-        params: {
-          q: query,
-          country,
-          limit,
-        },
-        headers: {
-          Authorization: `Bearer ${DRUG_DB_API_KEY}`,
-        },
-        timeout: 15000,
-      }
-    );
-
-    return data?.drugs || data?.results || data?.items || [];
-  } catch (err) {
-    console.error(
-      "Drug Database Search Error:",
-      err.response?.status,
-      err.response?.data || err.message
-    );
-    return [];
-  }
-}
 module.exports = {
   lookupDrug,
   lookupMultipleDrugs,
   fetchFromOpenFDA,
   findAlternativesFromDrugDatabase,
-  searchDrugDatabase,
 };

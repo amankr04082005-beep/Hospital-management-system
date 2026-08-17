@@ -1,5 +1,58 @@
 const Medicine = require('../models/Medicine');
 
+// POST /api/medicines  (Pharmacist/Admin only) — manually add a new medicine to inventory
+async function addMedicine(req, res, next) {
+  try {
+    if (req.user.role !== 'pharmacist' && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only pharmacists can add medicines.' });
+    }
+
+    const {
+      brandName,
+      genericName,
+      composition,
+      manufacturer,
+      form,
+      category,
+      isPenicillinBased,
+      contraindications,
+      ageRestriction,
+      dosageByAge,
+      stockQuantity,
+      lowStockThreshold,
+      expiryDate,
+    } = req.body;
+
+    if (!brandName || !genericName || !composition) {
+      return res.status(400).json({
+        success: false,
+        message: 'brandName, genericName, and composition are required.',
+      });
+    }
+
+    const medicine = new Medicine({
+      brandName,
+      genericName,
+      composition,
+      manufacturer,
+      form,
+      category,
+      isPenicillinBased,
+      contraindications,
+      ageRestriction,
+      dosageByAge,
+      stockQuantity: stockQuantity || 0,
+      lowStockThreshold: lowStockThreshold || 10,
+      expiryDate,
+      lastRestockedAt: stockQuantity > 0 ? new Date() : null,
+    });
+
+    await medicine.save();
+    res.status(201).json({ success: true, data: medicine });
+  } catch (error) {
+    next(error);
+  }
+}
 
 // GET /api/medicines/search?q=Dolo  — Module 6: Search by brand/generic/composition
 async function search(req, res, next) {
@@ -38,12 +91,7 @@ async function getAlternatives(req, res, next) {
   }
 }
 
-
-
 // GET /api/medicines/inventory
-// SRS Module 2.4 — Pharmacist permission: Manage Inventory.
-// Lists every medicine with its current stock, sorted low-stock-first
-// so the pharmacist immediately sees what needs reordering.
 async function getInventory(req, res, next) {
   try {
     const medicines = await Medicine.find().sort({ stockQuantity: 1, brandName: 1 });
@@ -54,8 +102,6 @@ async function getInventory(req, res, next) {
 }
 
 // PATCH /api/medicines/:id/stock  (Pharmacist only)
-// Body: { adjustment: number, reason?: string }  — positive to restock,
-// negative to record dispensing/wastage. Never goes below zero.
 async function updateStock(req, res, next) {
   try {
     if (req.user.role !== 'pharmacist' && req.user.role !== 'admin') {
@@ -79,4 +125,4 @@ async function updateStock(req, res, next) {
   }
 }
 
-module.exports = { search, getAlternatives, getInventory, updateStock };
+module.exports = { addMedicine, search, getAlternatives, getInventory, updateStock };

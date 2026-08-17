@@ -12,14 +12,16 @@ export async function getAlternatives(medicineId) {
   return data.data;
 }
 
-// Works even when the medicine isn't in the local catalogue — the
-// backend falls back to the external Drug Database API in that case.
 export async function getAlternativesByName(name) {
   if (!name || !name.trim()) return { resolvedId: null, alternatives: [] };
-  const { data } = await api.get('/medicines/alternatives-by-name', {
-    params: { name: name.trim() },
-  });
-  return { resolvedId: null, alternatives: data.data || [], source: data.source };
+  const matches = await searchMedicines(name.trim());
+  if (!matches || matches.length === 0) return { resolvedId: null, alternatives: [] };
+
+  const exact = matches.find((m) => m.brandName?.toLowerCase() === name.trim().toLowerCase());
+  const resolved = exact || matches[0];
+
+  const alternatives = await getAlternatives(resolved._id);
+  return { resolvedId: resolved._id, alternatives: alternatives.filter((a) => a._id !== resolved._id) };
 }
 
 // SRS Module 2.4 — Pharmacist permission: Manage Inventory.
@@ -30,5 +32,11 @@ export async function getInventory() {
 
 export async function updateStock(medicineId, adjustment, expiryDate) {
   const { data } = await api.patch(`/medicines/${medicineId}/stock`, { adjustment, expiryDate });
+  return data.data;
+}
+
+// Manually add a new medicine to inventory (Pharmacist/Admin only).
+export async function addMedicine(payload) {
+  const { data } = await api.post('/medicines', payload);
   return data.data;
 }
